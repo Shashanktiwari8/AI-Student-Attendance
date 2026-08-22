@@ -1,4 +1,3 @@
-cmake
 fastapi
 uvicorn
 pydantic
