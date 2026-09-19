@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Dashboard - Dynamic QR | GP Daman</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .qr-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+        }
+        .qr-image-container {
+            background: white;
+            padding: 15px;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-bottom: 15px;
+            position: relative;
+        }
+        .qr-image-container img {
+            width: 220px;
+            height: 220px;
+            display: block;
+        }
+        .timer-bar-container {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        .timer-bar {
+            height: 100%;
+            width: 100%;
+            background: var(--primary-red);
+            transition: width 1s linear;
+        }
+        .token-display {
+            font-size: 1.2rem;
+            font-weight: 700;
+            letter-spacing: 2px;
+            color: #60a5fa;
+            background: rgba(0,0,0,0.3);
+            padding: 8px 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .students-list {
+            width: 100%;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .students-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9rem;
+        }
+        .students-table th, .students-table td {
+            padding: 10px;
+            border-bottom: 1px solid var(--glass-border);
+            text-align: left;
+        }
+        .students-table th {
+            color: #cbd5e1;
+        }
+        .nav-link {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 0.9rem;
+            display: inline-block;
+            margin-bottom: 15px;
+        }
+        .nav-link:hover { color: white; }
+    </style>
+</head>
+<body>
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <div class="container" style="max-width: 600px;">
+        <div class="glass-card">
+            <a href="index.html" class="nav-link"><i class="fa-solid fa-arrow-left"></i> Go to Student Portal</a>
+            
+            <div class="header">
+                <img src="logo.png" alt="GP Daman Logo" class="logo" onerror="this.style.display='none'">
+                <h1>Teacher Projector Dashboard</h1>
+                <p class="subtitle">Classroom Dynamic QR Session Generator</p>
+            </div>
+
+            <!-- Teacher Authentication Form -->
+            <div id="teacher-login-form">
+                <div style="text-align: center; margin-bottom: 15px;">
+                    <i class="fa-solid fa-lock" style="font-size: 2rem; color: #60a5fa; margin-bottom: 5px;"></i>
+                    <h3 style="font-size: 1.1rem; font-weight: 600;">Teacher Login</h3>
+                    <p style="font-size: 0.85rem; color: #94a3b8;">Enter teacher credentials to manage classroom session</p>
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-id-badge"></i>
+                    <input type="text" id="teacher-id-login" placeholder="Teacher ID (e.g. T101)" value="T101">
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-key"></i>
+                    <input type="password" id="teacher-pass-login" placeholder="Password" value="teacher123">
+                </div>
+                <button class="primary-btn" onclick="loginTeacher()">
+                    <i class="fa-solid fa-right-to-bracket"></i> Login as Teacher
+                </button>
+                <p id="login-status" class="status-msg"></p>
+            </div>
+
+            <!-- Start Session Form (Hidden until Teacher Login) -->
+            <div id="setup-form" style="display: none;">
+                <div style="background: rgba(96, 165, 250, 0.15); border-radius: 8px; padding: 10px; margin-bottom: 15px; text-align: center; font-size: 0.9rem; color: #60a5fa;">
+                    Logged in as: <strong id="logged-teacher-name">Prof. Shashank Tiwari</strong>
+                </div>
+
+                <div class="input-group">
+                    <i class="fa-solid fa-book"></i>
+                    <input type="text" id="subject-name" placeholder="Subject Name (e.g. Computer Networks)" value="Computer Networks">
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-user-tie"></i>
+                    <input type="text" id="teacher-name" placeholder="Teacher Name" value="Prof. Shashank Tiwari" readonly>
+                </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <input type="number" id="geofence-radius" placeholder="Geofence Radius (meters)" value="50">
+                </div>
+
+                <button class="primary-btn" onclick="startTeacherSession()">
+                    <i class="fa-solid fa-play"></i> Start Attendance Session & Display QR
+                </button>
+                <p id="setup-status" class="status-msg"></p>
+            </div>
+
+            <!-- Active QR Dashboard (Hidden initially) -->
+            <div id="qr-dashboard" style="display: none;">
+                <h2 id="disp-subject" style="color: #f8fafc; font-size: 1.3rem;">Subject</h2>
+                <p id="disp-teacher" style="color: #cbd5e1; font-size: 0.9rem; margin-bottom: 15px;">Teacher</p>
+
+                <div class="timer-bar-container">
+                    <div id="timer-bar" class="timer-bar"></div>
+                </div>
+
+                <div class="qr-card">
+                    <div class="qr-image-container">
+                        <img id="qr-code-img" src="" alt="Dynamic QR Code">
+                    </div>
+                    <div class="token-display">
+                        TOKEN: <span id="token-text">--------</span>
+                    </div>
+                    <p style="font-size: 0.85rem; color: #94a3b8;"><i class="fa-solid fa-rotate"></i> QR Code Auto-Refreshes every 10 seconds</p>
+                </div>
+
+                <!-- Live Present Students -->
+                <div class="students-list">
+                    <h3 style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><i class="fa-solid fa-users"></i> Live Present Students</span>
+                        <span id="present-count" style="background: var(--primary-red); padding: 2px 10px; border-radius: 12px; font-size: 0.9rem;">0 Present</span>
+                    </h3>
+                    <table class="students-table">
+                        <thead>
+                            <tr>
+                                <th>Enrollment No.</th>
+                                <th>Student Name</th>
+                                <th>Time</th>
+                            </tr>
+                        </thead>
+                        <tbody id="students-table-body">
+                            <tr><td colspan="3" style="text-align: center; color: #94a3b8;">Waiting for students to scan & mark...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="teacher.js"></script>
+</body>
+</html>
