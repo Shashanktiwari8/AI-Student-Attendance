@@ -23,29 +23,53 @@ def get_distance_haversine(lat1, lon1, lat2, lon2):
     return c * r
 
 def decode_image_base64(base64_string):
-    """Convert base64 image from frontend to cv2 image"""
-    if "base64," in base64_string:
-        base64_string = base64_string.split("base64,")[1]
-    img_data = base64.b64decode(base64_string)
-    nparr = np.frombuffer(img_data, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    return img
+    """Convert base64 image from frontend to cv2 image safely"""
+    try:
+        if "base64," in base64_string:
+            base64_string = base64_string.split("base64,")[1]
+        base64_string = base64_string.replace(" ", "+")
+        img_data = base64.b64decode(base64_string)
+        nparr = np.frombuffer(img_data, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        return img
+    except Exception as e:
+        print(f"Base64 decode error: {e}")
+        return None
 
 def get_face_encoding(img):
-    """Extract face encoding from an image using face_recognition"""
-    # Convert BGR to RGB (face_recognition expects RGB)
-    rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-    
-    # Find faces in the image
-    face_locations = face_recognition.face_locations(rgb_img)
-    if not face_locations:
-        return None # No face found
-    
-    # Get the 128-d encodings for faces found
-    encodings = face_recognition.face_encodings(rgb_img, face_locations)
-    if encodings:
-        return encodings[0] # Return the first face's encoding
-    return None
+    """Extract face encoding with automatic 4-way mobile camera rotation checking"""
+    if img is None:
+        return None
+        
+    try:
+        # Maintain clear resolution up to 800px width
+        h, w = img.shape[:2]
+        if w > 800:
+            scale = 800 / w
+            img = cv2.resize(img, (800, int(h * scale)))
+            
+        rgb_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        
+        # Mobile cameras often stream video rotated 90 degrees.
+        # We test 0°, 90° CW, 90° CCW, and 180° so the face is ALWAYS detected!
+        rotations = [
+            rgb_img,
+            cv2.rotate(rgb_img, cv2.ROTATE_90_CLOCKWISE),
+            cv2.rotate(rgb_img, cv2.ROTATE_90_COUNTERCLOCKWISE),
+            cv2.rotate(rgb_img, cv2.ROTATE_180)
+        ]
+        
+        for rotated_img in rotations:
+            face_locations = face_recognition.face_locations(rotated_img, number_of_times_to_upsample=1)
+            if face_locations:
+                encodings = face_recognition.face_encodings(rotated_img, face_locations)
+                if encodings:
+                    return encodings[0] # Successfully found face in this orientation!
+                    
+        return None # No face found in any rotation
+    except Exception as e:
+        print(f"Error in face encoding: {e}")
+        return None
 
 def compare_faces(known_encoding_json, new_encoding, tolerance=0.5):
     """Compare stored json encoding with new numpy encoding"""

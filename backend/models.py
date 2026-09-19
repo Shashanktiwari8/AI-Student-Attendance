@@ -9,10 +9,19 @@ class Student(Base):
     id = Column(Integer, primary_key=True, index=True)
     enrollment_no = Column(String, unique=True, index=True)
     name = Column(String)
-    # We will store the numpy array of the face encoding as a JSON string
-    face_encoding = Column(String, nullable=True) 
+    password = Column(String, nullable=True) # Password for secure login
+    face_encoding = Column(String, nullable=True) # Stored face vector JSON
 
     attendances = relationship("Attendance", back_populates="student")
+
+class Teacher(Base):
+    __tablename__ = "teachers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    teacher_id = Column(String, unique=True, index=True) # e.g. T101
+    name = Column(String)
+    password = Column(String)
+    department = Column(String, default="Computer Science & Engineering")
 
 class Session(Base):
     __tablename__ = "sessions"
@@ -28,7 +37,7 @@ class Session(Base):
     longitude = Column(Float, nullable=True)
     radius_meters = Column(Float, default=50.0)
     
-    # For Dynamic QR (Token changes every 10 seconds)
+    # For Dynamic QR
     current_qr_token = Column(String, nullable=True)
 
     attendances = relationship("Attendance", back_populates="session")
@@ -41,7 +50,6 @@ class Attendance(Base):
     student_id = Column(Integer, ForeignKey("students.id"))
     timestamp = Column(DateTime, default=datetime.datetime.utcnow)
     
-    # Status can be 'Present', 'Proxy Detected', 'Location Failed', etc.
     status = Column(String, default="Present")
 
     session = relationship("Session", back_populates="attendances")

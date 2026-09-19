@@ -1,5 +1,89 @@
-const API_URL = "http://localhost:8000/api";
+const API_URL = (window.location.origin && window.location.origin !== "null" && !window.location.origin.startsWith("file://")) 
+    ? window.location.origin + "/api" 
+    : "http://localhost:8000/api";
 let videoStream = null;
+
+let html5QrCode = null;
+
+async function openQRScanner() {
+    showStatus('att-status', 'Step 1: Point camera at projector QR code', 'info');
+
+    if (videoStream) {
+        videoStream.getTracks().forEach(track => track.stop());
+        videoStream = null;
+    }
+
+    if (typeof Html5Qrcode === 'undefined') {
+        setTimeout(openQRScanner, 1000);
+        return;
+    }
+
+    if (!html5QrCode) {
+        html5QrCode = new Html5Qrcode("qr-reader");
+    }
+
+    const config = { fps: 10, qrbox: { width: 220, height: 220 } };
+
+    const onScanSuccess = (decodedText) => {
+        proceedToStep2(decodedText);
+    };
+
+    try {
+        await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
+    } catch (err1) {
+        try {
+            await html5QrCode.start({ facingMode: "user" }, config, onScanSuccess);
+        } catch (err2) {
+            console.error("QR scanner start error:", err2);
+            showStatus('att-status', 'Camera scanner unavailable. You can enter token manually below.', 'error');
+        }
+    }
+}
+
+let scannedSessionId = 1;
+let scannedQrToken = "";
+
+function proceedToStep2(token) {
+    if (html5QrCode && html5QrCode.isScanning) {
+        html5QrCode.stop().catch(e => console.log(e));
+    }
+    
+    // Parse SESSION_ID:TOKEN if formatted as ID:TOKEN
+    if (token.includes(":")) {
+        const parts = token.split(":");
+        scannedSessionId = parseInt(parts[0]) || 1;
+        scannedQrToken = parts[1];
+    } else {
+        scannedSessionId = 1;
+        scannedQrToken = token;
+    }
+    
+    document.getElementById('att-qr').value = scannedQrToken;
+    document.getElementById('scanned-token-text').innerText = scannedQrToken;
+
+    // Transition Step 1 -> Step 2
+    document.getElementById('att-step-1').style.display = 'none';
+    document.getElementById('att-step-2').style.display = 'block';
+
+    showStatus('att-status', 'Step 1 Passed! Now enter enrollment & verify selfie.', 'success');
+
+    // Start Front Selfie Camera for Step 2!
+    startCamera('att-video');
+}
+
+function toggleManualTokenBox() {
+    const box = document.getElementById('manual-token-box');
+    box.style.display = box.style.display === 'none' ? 'block' : 'none';
+}
+
+function submitManualToken() {
+    const token = document.getElementById('att-qr-manual').value;
+    if (!token) {
+        showStatus('att-status', 'Please enter a valid QR token.', 'error');
+        return;
+    }
+    proceedToStep2(token);
+}
 
 // Tab Switching Logic
 function switchTab(tabId) {
@@ -10,19 +94,25 @@ function switchTab(tabId) {
     // Show selected tab
     document.getElementById(`${tabId}-section`).classList.add('active');
     
-    // Update active button (finding it properly)
-    const btns = document.querySelectorAll('.tab-btn');
+    // Update active button
+    const btns = document.querySelectorAll('.tabs .tab-btn');
     if (tabId === 'attendance') {
         btns[0].classList.add('active');
+        // Reset to Step 1 & open QR scanner
+        document.getElementById('att-step-1').style.display = 'block';
+        document.getElementById('att-step-2').style.display = 'none';
+        if (videoStream) {
+            videoStream.getTracks().forEach(track => track.stop());
+            videoStream = null;
+        }
+        openQRScanner();
     } else {
         btns[1].classList.add('active');
+        if (html5QrCode && html5QrCode.isScanning) {
+            html5QrCode.stop().catch(e => console.log(e));
+        }
+        startCamera('reg-video');
     }
-    
-    // Switch camera
-    if(videoStream) {
-        videoStream.getTracks().forEach(track => track.stop());
-    }
-    startCamera(tabId === 'attendance' ? 'att-video' : 'reg-video');
     
     // Clear messages
     document.getElementById('att-status').className = 'status-msg';
@@ -43,14 +133,23 @@ async function startCamera(videoId) {
     }
 }
 
-// Capture Image from Video
+// Capture Image from Video (Optimized for sharp face detection)
 function captureImage(videoId) {
     const video = document.getElementById(videoId);
     const canvas = document.getElementById('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d').drawImage(video, 0, 0);
-    return canvas.toDataURL('image/jpeg');
+    
+    let w = video.videoWidth || video.clientWidth || 640;
+    let h = video.videoHeight || video.clientHeight || 480;
+    
+    // Set canvas dimensions to 640px width for clear facial features
+    const targetWidth = 640;
+    const scale = targetWidth / w;
+    canvas.width = targetWidth;
+    canvas.height = h * scale;
+    
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL('image/jpeg', 0.90); // 90% quality for crystal clear face features
 }
 
 // Get GPS Location
@@ -103,10 +202,11 @@ async function registerStudent() {
         if (response.ok) {
             showStatus('reg-status', data.message, 'success');
         } else {
-            showStatus('reg-status', data.detail, 'error');
+            showStatus('reg-status', data.detail || 'Registration failed', 'error');
         }
     } catch(err) {
-        showStatus('reg-status', 'Network error connecting to backend server.', 'error');
+        console.error("Registration error:", err);
+        showStatus('reg-status', `Error: ${err.message || 'Connection failed'}`, 'error');
     }
 }
 
@@ -137,26 +237,33 @@ async function markAttendance() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 enrollment_no: enrollment,
-                session_id: 1, // Hardcoded for demo/testing purposes
+                session_id: scannedSessionId || 1,
                 image_base64: imageBase64,
                 latitude: location.lat,
                 longitude: location.lng,
-                qr_token: qrToken
+                qr_token: scannedQrToken || qrToken
             })
         });
-        const data = await response.json();
+
+        let data;
+        try {
+            data = await response.json();
+        } catch(e) {
+            data = { detail: "Server error occurred. Please check backend log." };
+        }
         
         if (response.ok) {
             showStatus('att-status', data.message, 'success');
         } else {
-            showStatus('att-status', data.detail, 'error');
+            showStatus('att-status', data.detail || 'Attendance failed', 'error');
         }
     } catch(err) {
-        showStatus('att-status', 'Network error connecting to backend server.', 'error');
+        console.error("Attendance error:", err);
+        showStatus('att-status', `Error: ${err.message || 'Connection failed'}`, 'error');
     }
 }
 
-// Init camera on load for default tab
+// Init QR scanner on load for default attendance tab
 window.onload = () => {
-    startCamera('att-video');
+    openQRScanner();
 };

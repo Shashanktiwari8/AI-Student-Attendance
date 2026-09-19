@@ -8,6 +8,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <!-- FontAwesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- html5-qrcode library for camera QR code scanning -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body>
     <!-- Background glowing orbs for Glassmorphism effect -->
@@ -22,6 +24,9 @@
                 <img src="logo.png" alt="GP Daman Logo" class="logo" onerror="this.style.display='none'">
                 <h1>Government Polytechnic, Daman</h1>
                 <p class="subtitle">AI-Based Smart Attendance System</p>
+                <div style="margin-top: 10px;">
+                    <a href="teacher.html" style="color: #60a5fa; font-size: 0.85rem; text-decoration: none;"><i class="fa-solid fa-chalkboard-user"></i> Open Teacher Dashboard (Projector Mode)</a>
+                </div>
             </div>
 
             <div class="tabs">
@@ -29,26 +34,63 @@
                 <button class="tab-btn" onclick="switchTab('register')">Register Face</button>
             </div>
 
-            <!-- Attendance Section -->
+            <!-- Attendance Section (2-Step Wizard Flow) -->
             <div id="attendance-section" class="tab-content active">
-                <div class="input-group">
-                    <i class="fa-solid fa-id-card"></i>
-                    <input type="text" id="att-enrollment" placeholder="Enter Enrollment No." autocomplete="off">
-                </div>
-                
-                <div class="input-group">
-                    <i class="fa-solid fa-qrcode"></i>
-                    <input type="text" id="att-qr" placeholder="Enter Class QR Token" autocomplete="off">
+
+                <!-- STEP 1: Scan Projector QR Code -->
+                <div id="att-step-1">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <i class="fa-solid fa-qrcode" style="font-size: 2rem; color: #60a5fa; margin-bottom: 5px;"></i>
+                        <h3 style="font-size: 1.1rem; font-weight: 600;">Step 1: Scan Classroom QR Code</h3>
+                        <p style="font-size: 0.85rem; color: #94a3b8;">Point your mobile camera at the projector screen</p>
+                    </div>
+
+                    <!-- Live Camera QR Scanner Box -->
+                    <div id="qr-reader" style="width: 100%; border-radius: 16px; overflow: hidden; border: 2px solid #60a5fa; margin-bottom: 15px;"></div>
+
+                    <div style="text-align: center;">
+                        <button type="button" class="tab-btn" style="font-size: 0.8rem; color: #94a3b8;" onclick="toggleManualTokenBox()">
+                            <i class="fa-solid fa-keyboard"></i> Or enter QR Token manually
+                        </button>
+                        <div id="manual-token-box" style="display: none; margin-top: 10px;">
+                            <input type="text" id="att-qr-manual" placeholder="Enter Token (e.g. A1B2C3D4)" style="margin-bottom: 10px;">
+                            <button type="button" class="primary-btn" style="padding: 10px; font-size: 0.9rem;" onclick="submitManualToken()">
+                                Proceed to Step 2 <i class="fa-solid fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="camera-container">
-                    <video id="att-video" autoplay playsinline></video>
-                    <div class="camera-overlay"></div>
+                <!-- STEP 2: Enrollment No. & Live Selfie (Unlocked after QR Scan) -->
+                <div id="att-step-2" style="display: none;">
+                    <div style="background: rgba(74, 222, 128, 0.15); border: 1px solid rgba(74, 222, 128, 0.4); border-radius: 12px; padding: 10px; margin-bottom: 20px; text-align: center;">
+                        <span style="color: #4ade80; font-weight: 600; font-size: 0.9rem;">
+                            <i class="fa-solid fa-circle-check"></i> Step 1 Passed: QR Scanned (<span id="scanned-token-text">---</span>)
+                        </span>
+                    </div>
+
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <h3 style="font-size: 1.1rem; font-weight: 600;">Step 2: Face Verification</h3>
+                        <p style="font-size: 0.85rem; color: #94a3b8;">Enter enrollment no. and take a clear selfie</p>
+                    </div>
+
+                    <input type="hidden" id="att-qr">
+
+                    <div class="input-group">
+                        <i class="fa-solid fa-id-card"></i>
+                        <input type="text" id="att-enrollment" placeholder="Enter Enrollment No." autocomplete="off">
+                    </div>
+
+                    <div class="camera-container">
+                        <video id="att-video" autoplay playsinline></video>
+                        <div class="camera-overlay"></div>
+                    </div>
+
+                    <button class="primary-btn" onclick="markAttendance()">
+                        <i class="fa-solid fa-user-check"></i> Verify Selfie & Mark Attendance
+                    </button>
                 </div>
 
-                <button class="primary-btn" onclick="markAttendance()">
-                    <i class="fa-solid fa-expand"></i> Scan & Mark Attendance
-                </button>
                 <p id="att-status" class="status-msg"></p>
             </div>
 
@@ -79,6 +121,6 @@
     <!-- Hidden canvas for capturing image from video -->
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <script src="app.js"></script>
+    <script src="app.js?v=8"></script>
 </body>
 </html>
