@@ -5,4 +5,6 @@ sqlalchemy
 python-multipart
 opencv-python-headless
 dlib-bin
-face-recognition
+Pillow
+numpy
+face-recognition-models
