@@ -8,3 +8,4 @@ dlib-bin
 Pillow
 numpy
 face-recognition-models
+face-recognition
