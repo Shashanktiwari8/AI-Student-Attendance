@@ -20,77 +20,64 @@
     <div class="container">
         <div class="glass-card">
             <div class="header">
-                <!-- Using placeholder for the logo you uploaded -->
                 <img src="logo.png" alt="GP Daman Logo" class="logo" onerror="this.style.display='none'">
                 <h1>Government Polytechnic, Daman</h1>
                 <p class="subtitle">AI-Based Smart Attendance System</p>
                 <div style="margin-top: 10px;">
-                    <a href="teacher.html" style="color: #60a5fa; font-size: 0.85rem; text-decoration: none;"><i class="fa-solid fa-chalkboard-user"></i> Open Teacher Dashboard (Projector Mode)</a>
+                    <a href="teacher.html" style="color: #60a5fa; font-size: 0.85rem; text-decoration: none;">
+                        <i class="fa-solid fa-chalkboard-user"></i> Open Teacher Dashboard (Projector Mode)
+                    </a>
                 </div>
             </div>
 
+            <!-- Tab Switching Buttons -->
             <div class="tabs">
-                <button class="tab-btn active" onclick="switchTab('attendance')">Mark Attendance</button>
-                <button class="tab-btn" onclick="switchTab('register')">Register Face</button>
+                <button id="tab-att-btn" class="tab-btn active" onclick="switchTab('attendance')">
+                    <i class="fa-solid fa-user-check"></i> Mark Attendance
+                </button>
+                <button id="tab-reg-btn" class="tab-btn" onclick="switchTab('register')">
+                    <i class="fa-solid fa-user-plus"></i> Register Face
+                </button>
             </div>
 
-            <!-- Attendance Section (2-Step Wizard Flow) -->
+            <!-- Attendance Section -->
             <div id="attendance-section" class="tab-content active">
-
-                <!-- STEP 1: Scan Projector QR Code -->
-                <div id="att-step-1">
-                    <div style="text-align: center; margin-bottom: 15px;">
-                        <i class="fa-solid fa-qrcode" style="font-size: 2rem; color: #60a5fa; margin-bottom: 5px;"></i>
-                        <h3 style="font-size: 1.1rem; font-weight: 600;">Step 1: Scan Classroom QR Code</h3>
-                        <p style="font-size: 0.85rem; color: #94a3b8;">Point your mobile camera at the projector screen</p>
-                    </div>
-
-                    <!-- Live Camera QR Scanner Box -->
-                    <div id="qr-reader" style="width: 100%; border-radius: 16px; overflow: hidden; border: 2px solid #60a5fa; margin-bottom: 15px;"></div>
-
-                    <div style="text-align: center;">
-                        <button type="button" class="tab-btn" style="font-size: 0.8rem; color: #94a3b8;" onclick="toggleManualTokenBox()">
-                            <i class="fa-solid fa-keyboard"></i> Or enter QR Token manually
-                        </button>
-                        <div id="manual-token-box" style="display: none; margin-top: 10px;">
-                            <input type="text" id="att-qr-manual" placeholder="Enter Token (e.g. A1B2C3D4)" style="margin-bottom: 10px;">
-                            <button type="button" class="primary-btn" style="padding: 10px; font-size: 0.9rem;" onclick="submitManualToken()">
-                                Proceed to Step 2 <i class="fa-solid fa-arrow-right"></i>
-                            </button>
-                        </div>
-                    </div>
+                <div class="input-group">
+                    <i class="fa-solid fa-id-card"></i>
+                    <input type="text" id="att-enrollment" placeholder="Enter Enrollment No." autocomplete="off">
                 </div>
 
-                <!-- STEP 2: Enrollment No. & Live Selfie (Unlocked after QR Scan) -->
-                <div id="att-step-2" style="display: none;">
-                    <div style="background: rgba(74, 222, 128, 0.15); border: 1px solid rgba(74, 222, 128, 0.4); border-radius: 12px; padding: 10px; margin-bottom: 20px; text-align: center;">
-                        <span style="color: #4ade80; font-weight: 600; font-size: 0.9rem;">
-                            <i class="fa-solid fa-circle-check"></i> Step 1 Passed: QR Scanned (<span id="scanned-token-text">---</span>)
-                        </span>
+                <!-- QR Token Input with Camera Scan Button -->
+                <div style="display: flex; gap: 8px; margin-bottom: 15px;">
+                    <div class="input-group" style="margin-bottom: 0; flex: 1;">
+                        <i class="fa-solid fa-qrcode"></i>
+                        <input type="text" id="att-qr" placeholder="Enter or Scan QR Token" autocomplete="off">
                     </div>
-
-                    <div style="text-align: center; margin-bottom: 15px;">
-                        <h3 style="font-size: 1.1rem; font-weight: 600;">Step 2: Face Verification</h3>
-                        <p style="font-size: 0.85rem; color: #94a3b8;">Enter enrollment no. and take a clear selfie</p>
-                    </div>
-
-                    <input type="hidden" id="att-qr">
-
-                    <div class="input-group">
-                        <i class="fa-solid fa-id-card"></i>
-                        <input type="text" id="att-enrollment" placeholder="Enter Enrollment No." autocomplete="off">
-                    </div>
-
-                    <div class="camera-container">
-                        <video id="att-video" autoplay playsinline></video>
-                        <div class="camera-overlay"></div>
-                    </div>
-
-                    <button class="primary-btn" onclick="markAttendance()">
-                        <i class="fa-solid fa-user-check"></i> Verify Selfie & Mark Attendance
+                    <button type="button" class="primary-btn" style="width: auto; padding: 0 16px; margin: 0; background: #2563eb; font-size: 0.85rem;" onclick="toggleQRScanner()">
+                        <i class="fa-solid fa-camera"></i> Scan QR
                     </button>
                 </div>
 
+                <!-- Optional QR Scanner Pop-down Window -->
+                <div id="qr-scanner-box" style="display: none; background: rgba(0,0,0,0.4); border-radius: 14px; padding: 12px; margin-bottom: 15px; border: 1px solid #60a5fa;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 0.85rem; color: #60a5fa; font-weight: 600;">Point camera at Projector QR:</span>
+                        <button type="button" onclick="closeQRScanner()" style="background: none; border: none; color: #ef4444; font-size: 1rem; cursor: pointer;">
+                            <i class="fa-solid fa-xmark"></i> Close
+                        </button>
+                    </div>
+                    <div id="qr-reader" style="width: 100%; border-radius: 8px; overflow: hidden;"></div>
+                </div>
+
+                <!-- Front Selfie Camera -->
+                <div class="camera-container">
+                    <video id="att-video" autoplay playsinline></video>
+                    <div class="camera-overlay"></div>
+                </div>
+
+                <button class="primary-btn" onclick="markAttendance()">
+                    <i class="fa-solid fa-check-circle"></i> Verify Selfie & Mark Attendance
+                </button>
                 <p id="att-status" class="status-msg"></p>
             </div>
 
@@ -111,7 +98,7 @@
                 </div>
 
                 <button class="primary-btn" onclick="registerStudent()">
-                    <i class="fa-solid fa-user-plus"></i> Register Student Face
+                    <i class="fa-solid fa-user-plus"></i> Capture & Register Student Face
                 </button>
                 <p id="reg-status" class="status-msg"></p>
             </div>
@@ -121,6 +108,6 @@
     <!-- Hidden canvas for capturing image from video -->
     <canvas id="canvas" style="display:none;"></canvas>
 
-    <script src="app.js?v=8"></script>
+    <script src="app.js?v=9"></script>
 </body>
 </html>
