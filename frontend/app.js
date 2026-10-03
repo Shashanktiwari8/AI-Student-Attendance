@@ -18,9 +18,21 @@ async function openQRScanner() {
         return;
     }
 
-    if (!html5QrCode) {
-        html5QrCode = new Html5Qrcode("qr-reader");
+    // If already scanning, stop first before restarting
+    if (html5QrCode) {
+        try {
+            if (html5QrCode.isScanning) {
+                await html5QrCode.stop();
+            }
+        } catch(e) { /* ignore stop errors */ }
+        try {
+            html5QrCode.clear();
+        } catch(e) { /* ignore clear errors */ }
+        html5QrCode = null;
     }
+
+    // Create fresh scanner instance
+    html5QrCode = new Html5Qrcode("qr-reader");
 
     const config = { fps: 10, qrbox: { width: 220, height: 220 } };
 
@@ -29,13 +41,16 @@ async function openQRScanner() {
     };
 
     try {
+        // Try back camera first (for mobile), then front camera (for desktop/laptop)
         await html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess);
     } catch (err1) {
         try {
             await html5QrCode.start({ facingMode: "user" }, config, onScanSuccess);
         } catch (err2) {
             console.error("QR scanner start error:", err2);
-            showStatus('att-status', 'Camera scanner unavailable. You can enter token manually below.', 'error');
+            // Show manual entry option instead
+            showStatus('att-status', 'Camera unavailable. Please type the QR token manually below.', 'error');
+            document.getElementById('manual-token-box').style.display = 'block';
         }
     }
 }
