@@ -4,7 +4,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import json
-import traceback
+import hashlib
+
+def hash_password(password: str) -> str:
+    if not password:
+        return ""
+    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+
+def verify_password(plain_password: str, stored_password: str) -> bool:
+    if not plain_password or not stored_password:
+        return False
+    # Supports both plain-text (for existing accounts) and SHA-256 hashed passwords
+    if plain_password == stored_password:
+        return True
+    return hash_password(plain_password) == stored_password
 
 import models
 from database import engine, get_db
@@ -31,16 +44,25 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 # Enable CORS to allow the frontend to communicate with this backend
+# Restricted to localhost for diploma project
+allowed_origins = [
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 from fastapi.staticfiles import StaticFiles
 import os
+from fastapi.responses import FileResponse
 
 # --- Pydantic Schemas ---
 class StudentRegister(BaseModel):
@@ -89,15 +111,18 @@ def seed_default_teacher():
         db = next(get_db())
         teacher = db.query(models.Teacher).filter(models.Teacher.teacher_id == "T101").first()
         if not teacher:
+            # Hash the default password for security
+            hashed_password = hash_password("teacher123")
             default_teacher = models.Teacher(
                 teacher_id="T101",
                 name="Prof. Shashank Tiwari",
-                password="teacher123",
+                password=hashed_password,
                 department="Computer Science & Engineering"
             )
             db.add(default_teacher)
             db.commit()
             print("[INFO] Default Teacher Account created: ID 'T101', Password 'teacher123'")
+            print("[WARNING] Change this password in production!")
     except Exception as e:
         print(f"Startup teacher seed warning: {e}")
 
@@ -106,7 +131,7 @@ def seed_default_teacher():
 @app.post("/api/teacher/login")
 def teacher_login(data: TeacherLogin, db: Session = Depends(get_db)):
     teacher = db.query(models.Teacher).filter(models.Teacher.teacher_id == data.teacher_id).first()
-    if not teacher or teacher.password != data.password:
+    if not teacher or not verify_password(data.password, teacher.password):
         raise HTTPException(status_code=401, detail="Invalid Teacher ID or Password")
     return {"status": "success", "teacher_id": teacher.teacher_id, "name": teacher.name, "department": teacher.department}
 
@@ -115,10 +140,12 @@ def teacher_register(data: TeacherRegister, db: Session = Depends(get_db)):
     existing = db.query(models.Teacher).filter(models.Teacher.teacher_id == data.teacher_id).first()
     if existing:
         raise HTTPException(status_code=400, detail="Teacher ID already exists")
+    # Hash password before storing
+    hashed_password = hash_password(data.password)
     new_teacher = models.Teacher(
         teacher_id=data.teacher_id,
         name=data.name,
-        password=data.password,
+        password=hashed_password,
         department=data.department
     )
     db.add(new_teacher)
@@ -201,17 +228,32 @@ def register_student(student: StudentRegister, db: Session = Depends(get_db)):
     encoding_list = encoding.tolist()
     encoding_json = json.dumps(encoding_list)
     
+    # Hash password before storing
+    hashed_password = hash_password(student.password)
+    
     # Save to database
     new_student = models.Student(
         enrollment_no=student.enrollment_no,
         name=student.name,
-        password=student.password,
+        password=hashed_password,
         face_encoding=encoding_json
     )
     db.add(new_student)
     db.commit()
     
     return {"status": "success", "message": f"Student {student.name} registered successfully!"}
+
+@app.get("/api/active_session")
+def get_active_session(db: Session = Depends(get_db)):
+    """Get the currently active attendance session"""
+    session = db.query(models.Session).filter(models.Session.is_active == True).order_by(models.Session.id.desc()).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="No active session found")
+    return {
+        "session_id": session.id,
+        "subject": session.subject,
+        "teacher_name": session.teacher_name
+    }
 
 @app.post("/api/mark_attendance")
 def mark_attendance(data: AttendanceMark, request: Request, db: Session = Depends(get_db)):
@@ -248,6 +290,18 @@ def mark_attendance(data: AttendanceMark, request: Request, db: Session = Depend
     student = db.query(models.Student).filter(models.Student.enrollment_no == data.enrollment_no).first()
     if not student:
         raise HTTPException(status_code=404, detail="Student not found. Please register first.")
+    
+    # CHECK: Student already marked attendance in this session
+    existing_attendance = db.query(models.Attendance).filter(
+        models.Attendance.session_id == session.id,
+        models.Attendance.student_id == student.id
+    ).first()
+    
+    if existing_attendance:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"You already marked attendance in this session at {existing_attendance.timestamp.strftime('%H:%M:%S')}"
+        )
         
     # 4. Liveness Check & 5. Face Match
     img = services.decode_image_base64(data.image_base64)
@@ -279,6 +333,21 @@ def health_check():
 # Serve the frontend files
 # We mount this at the root after all API routes so it doesn't conflict
 frontend_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend'))
+
+# Direct routes for HTML files (for easy navigation)
+@app.get("/")
+async def root():
+    return FileResponse(os.path.join(frontend_path, 'index.html'), media_type='text/html')
+
+@app.get("/index.html")
+async def student_portal():
+    return FileResponse(os.path.join(frontend_path, 'index.html'), media_type='text/html')
+
+@app.get("/teacher.html")
+async def teacher_dashboard():
+    return FileResponse(os.path.join(frontend_path, 'teacher.html'), media_type='text/html')
+
+# Mount static files directory
 app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
 
 
